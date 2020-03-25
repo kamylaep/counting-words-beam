@@ -4,18 +4,22 @@ import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import org.apache.beam.examples.MinimalWordCount.ProcessStrings;
 import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
 import org.apache.beam.sdk.testing.TestPipeline;
 import org.apache.beam.sdk.transforms.Create;
-import org.apache.beam.sdk.values.PCollection;
 import org.apache.commons.io.FileUtils;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -27,7 +31,7 @@ import org.powermock.modules.junit4.PowerMockRunner;
 public class MinimalWordCountTest implements Serializable {
 
   private static final List<String> EXPECTED_ALL_WORDS_COUNT = Arrays
-      .asList("I: 1", "am: 1", "a: 2", "test: 2", "so: 1", "me: 1", "please: 1", "another: 1", "word: 1", "with: 1", "the: 1", "letter: 1");
+    .asList("I: 1", "am: 1", "a: 2", "test: 2", "so: 1", "me: 1", "please: 1", "another: 1", "word: 1", "with: 1", "the: 1", "letter: 1");
   private static final List<String> EXPECTED_FILTERED_WORDS_COUNT = Arrays.asList("am: 1", "a: 2", "another: 1");
 
   @Rule
@@ -42,27 +46,41 @@ public class MinimalWordCountTest implements Serializable {
 
   @After
   public void cleanUp() {
-    FileUtils.deleteQuietly(new File(options.getOutputAllWordsFileName()));
-    FileUtils.deleteQuietly(new File(options.getOutputFilterWordsFileName()));
+    FileUtils.deleteQuietly(new File(options.getOutputPath()));
   }
 
   @Test
   public void shouldProduceTwoFilesWithTheCountedWords() throws Exception {
-    PCollection<String> input = testPipeline.apply(Create.of(Arrays.asList("I", "am", "a", "test", "so", "test", "me", "please", "another", "word", "with", "the", "letter", "a")));
-    MinimalWordCount.buildPipeline(options, input);
+    testPipeline
+      .apply(Create.of(Arrays.asList("I", "am", "a", "test", "so", "test", "me", "please", "another", "word", "with", "the", "letter", "a")))
+      .apply(new ProcessStrings(options.getWindowInSeconds(), options.getStartsWith(), options.getOutputPath()));
+
     testPipeline.run().waitUntilFinish();
-    assertData(options.getOutputAllWordsFileName(), EXPECTED_ALL_WORDS_COUNT);
-    assertData(options.getOutputFilterWordsFileName(), EXPECTED_FILTERED_WORDS_COUNT);
+
+    assertData("all", EXPECTED_ALL_WORDS_COUNT);
+    assertData("filtered", EXPECTED_FILTERED_WORDS_COUNT);
   }
 
   private void assertData(String outputFileName, List<String> expectedData) throws IOException {
-    Files.readAllLines(Paths.get(outputFileName)).containsAll(expectedData);
+    //TODO assert number of shards X number of files
+    List<String> words = Files.walk(Paths.get(options.getOutputPath()))
+      .filter(p -> p.getFileName().toString().startsWith(outputFileName))
+      .flatMap(this::readFileToStream)
+      .collect(Collectors.toList());
+    Assert.assertTrue(words.containsAll(expectedData));
+  }
+
+  private Stream<? extends String> readFileToStream(Path p) {
+    try {
+      return Files.readAllLines(p).stream();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private MinimalWordCountOptions buildOptions() {
     MinimalWordCountOptions pipelineOptions = TestPipeline.testingPipelineOptions().as(MinimalWordCountOptions.class);
-    pipelineOptions.setOutputAllWordsFileName("/tmp/" + UUID.randomUUID().toString() + ".txt");
-    pipelineOptions.setOutputFilterWordsFileName("/tmp/" + UUID.randomUUID().toString() + ".txt");
+    pipelineOptions.setOutputPath("/tmp/" + UUID.randomUUID().toString());
     pipelineOptions.setStartsWith("a");
     return pipelineOptions;
   }

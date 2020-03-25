@@ -12,7 +12,6 @@ mvn compile exec:java -Dexec.mainClass=org.apache.beam.examples.MinimalWordCount
 --project=<PROJETCT-ID> \
 --subscription=<SUBSCRIPTION> \
 --startsWith=a \
---outputFilterFileName=<OUTPUT-PATH-FOR-WORDS-STARTING-WITH-A> \
---outputAllFileName=<OUTPUT-PATH-FOR-ALL-WORDS> \
+--outputPath=<OUTPUT-PATH> \
 -Pdataflow-runner
 ```

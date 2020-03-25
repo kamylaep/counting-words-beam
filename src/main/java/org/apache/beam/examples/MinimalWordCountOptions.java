@@ -9,13 +9,9 @@ public interface MinimalWordCountOptions extends PipelineOptions {
 
   void setSubscription(String subscription);
 
-  String getOutputFilterWordsFileName();
+  String getOutputPath();
 
-  void setOutputFilterWordsFileName(String outputFilterWordsFileName);
-
-  String getOutputAllWordsFileName();
-
-  void setOutputAllWordsFileName(String outputAllWordsFileName);
+  void setOutputPath(String outputPath);
 
   @Default.Long(5)
   long getWindowInSeconds();
